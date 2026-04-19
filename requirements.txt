@@ -4,3 +4,5 @@ geopandas
 requests
 matplotlib
 dotenv
+pyogrio
+plotly
