@@ -1,0 +1,6 @@
+marimo
+pandas
+geopandas
+requests
+matplotlib
+dotenv
