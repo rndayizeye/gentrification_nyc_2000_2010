@@ -1,57 +1,109 @@
-Analysis of Gentrification in Brooklyn, NY
-This repository contains a reactive spatial analysis of neighborhood change in Brooklyn, New York. Using U.S. Census Bureau data (Decennial Census and ACS), this project operationalizes the concept of gentrification into measurable criteria to identify tracts that were "gentrifiable" in 2000 and those that "gentrified" by 2010.
+# Gentrification in Brooklyn, NY: A Spatial Analysis 🏙️
 
-🏙 Background: What is Gentrification?
-Gentrification is a complex process occurring in urban neighborhoods that have experienced decades of disinvestment, middle-class flight, and deteriorating housing stock. Despite these challenges, the urban core often remains a locus of employment and culture.
+> A reproducible geospatial study measuring neighborhood gentrification in Brooklyn using U.S. Census data — operationalizing a peer-reviewed sociological framework into quantifiable, tract-level indicators.
 
-This study follows the methodology proposed by Freeman (2005), viewing gentrification as a process of class-based succession. It focuses on the concern that long-time residents may be priced out as new investment and higher-income households move in, leading to a rapid shift in educational attainment and property values.
+**Python · Marimo · GeoPandas · Census API · Docker**
 
-📊 Methodology
-Gentrification is measured across two distinct time periods.
+---
 
-1. Identifying "Gentrifiable" Tracts (Period 1: 2000)
-A Census tract is classified as Gentrifiable if it lagged behind the New York Metropolitan Area in 2000 based on two criteria:
+## Overview
 
-Low Income: Median Household Income (MHI) less than the Metropolitan Statistical Area (MSA) median.
+Gentrification — the displacement of long-time, lower-income residents as higher-income households and investment move into historically disinvested neighborhoods — is one of the most consequential urban processes affecting health equity, housing stability, and community cohesion.
 
-Low Construction: Percentage of housing built in the previous 20 years (1980–2000) less than the MSA-level percentage.
+This project follows the methodology of **Freeman (2005)** to classify Brooklyn census tracts as *gentrifiable* (eligible for gentrification based on 2000 conditions) and *gentrifying* (showing measurable change by 2010) using two decades of U.S. Census Bureau data.
 
-2. Identifying "Gentrifying" Tracts (Period 2: 2010)
-A tract is considered Gentrifying if it was gentrifiable in 2000 AND met the following between 2000 and 2010:
+The result is an interactive, reactive spatial analysis that maps which neighborhoods changed, by how much, and by what measurable indicators.
 
-Educational Shift: The percentage of the population with a Bachelor’s degree or higher increased faster than the MSA-level increase.
+---
 
-Property Value Growth: House values increased significantly, even after accounting for inflation (using a CPI deflator of 1.2612).
+## Why This Matters
 
-🛠 Tech Stack
-Language: Python 3.11
+Gentrification is a **social determinant of health**. Displacement disrupts:
+- Access to primary care and trusted providers
+- Chronic disease management continuity
+- Mental health and social support networks
+- School stability for children
 
-Notebook Environment: Marimo (A reactive, reproducible notebook format)
+Identifying where gentrification has occurred — and by what mechanisms — is the first step toward targeted policy intervention and equitable resource allocation.
 
-Spatial Data: GeoPandas, Matplotlib
+*This project builds directly on the geospatial cluster analysis methods used professionally in STI/HIV morbidity hotspot identification at the Virginia Department of Health.*
 
-Data Ingestion: Census API, Requests
+---
 
-Deployment: Docker (containerized for environment consistency)
+## Key Questions
 
-🚀 Getting Started
-Prerequisites
-Docker installed on your machine.
+1. Which Brooklyn census tracts were "gentrifiable" in 2000 — lagging behind the NYC metro area in income and housing investment?
+2. Which of those tracts showed measurable gentrification between 2000 and 2010?
+3. What does the spatial distribution of gentrifying tracts reveal about neighborhood change patterns across Brooklyn?
 
-A U.S. Census API Key. You can request one for free here.
+For the full analytical framework, data dictionary, and variable definitions, see **[METHODOLOGY.md](./METHODOLOGY.md)**.
 
-Installation
-Clone the repository:
+---
 
-Bash
-git clone https://github.com/yourusername/brooklyn-gentrification.git
-cd brooklyn-gentrification
-Set up your Environment Variables:
-Create a .env file in the root directory:
+## Tech Stack
 
-Bash
-touch .env
-Add your API key to the file:
+| Tool | Purpose |
+|---|---|
+| Python 3.11 | Core analysis |
+| [Marimo](https://marimo.io) | Reactive, reproducible notebook environment |
+| GeoPandas | Spatial data processing and tract-level mapping |
+| Matplotlib | Visualization |
+| U.S. Census Bureau API | Decennial Census (2000) and ACS (2010) data |
+| Docker | Containerized reproducible environment |
+
+---
+
+## Getting Started
+
+### Prerequisites
+- [Docker](https://www.docker.com/get-started) installed
+- A free [U.S. Census API Key](https://api.census.gov/data/key_signup.html)
+
+### Run with Docker
+
+```bash
+# 1. Clone the repo
+git clone https://github.com/rndayizeye/gentrification_nyc_2000_2010.git
+cd gentrification_nyc_2000_2010
+
+# 2. Set up environment variables
+cp .env.example .env
+# Edit .env and add: CENSUS_API_KEY=your_key_here
+
+# 3. Build and run
+docker build -t brooklyn-analysis .
+docker run --env-file .env -p 2718:2718 brooklyn-analysis
+```
+
+Open **http://localhost:2718** in your browser.
+
+---
+
+## Project Structure
+
+```
+gentrification_nyc_2000_2010/
+├── brooklyn_gentrification.py   # Main Marimo reactive notebook
+├── Dockerfile                   # Reproducible container config
+├── requirements.txt             # Python dependencies
+├── .env.example                 # Environment variable template
+├── README.md                    # This file
+└── METHODOLOGY.md               # Full analytical framework and variable definitions
+```
+
+---
+
+## Reference
+
+Freeman, Lance. 2005. "Displacement or Succession?: Residential Mobility in Gentrifying Neighborhoods." *Urban Affairs Review* 40(4): 463–491.
+
+---
+
+## Author
+
+**Remy Ndayizeye, MPH, MD**
+Epidemiologist | Data Scientist | Virginia Department of Health
+[LinkedIn](https://www.linkedin.com/in/remynd) · [DataCamp Portfolio](https://www.datacamp.com/portfolio/remyndayizeye) · [GitHub](https://github.com/rndayizeye)Add your API key to the file:
 
 Plaintext
 CENSUS_API_KEY=your_key_here
