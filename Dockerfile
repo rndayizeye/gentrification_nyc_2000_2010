@@ -1,24 +1,22 @@
 FROM python:3.11-slim
 
-# Install system dependencies for spatial libraries
+# Install system dependencies for spatial libraries (GDAL, PROJ, GEOS)
 RUN apt-get update && apt-get install -y \
     libgdal-dev \
+    libgeos-dev \
+    libproj-dev \
     g++ \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-# Ensure binaries are in path
 ENV PATH="/root/.local/bin:$PATH"
 
-# Copy requirements first (this allows Docker to cache this layer)
 COPY requirements.txt .
 
-# Install all dependencies at once
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
-# Copy the rest of your files
 COPY . .
 
 EXPOSE 2718

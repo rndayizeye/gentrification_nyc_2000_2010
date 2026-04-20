@@ -1,9 +1,11 @@
-import marimo as mo
+import marimo
 
-app = mo.App(title="Brooklyn Gentrification Analysis", iterable_update=False)
+__generated_with = "0.23.1"
+app = marimo.App()
+
 
 @app.cell
-def __():
+def _():
     import marimo as mo
     import os
     import pandas as pd
@@ -12,125 +14,145 @@ def __():
     import requests
     from dotenv import load_dotenv
 
-    # Load environment variables from .env
     load_dotenv()
-    return gpd, load_dotenv, mo, os, pd, plt, requests
+    return gpd, mo, os, pd, plt, requests
+
 
 @app.cell
-def __(mo):
-    mo.md(
-        r"""
-        # 🏙️ Brooklyn Gentrification Analysis (2000-2010)
-        This notebook uses U.S. Census data to operationalize gentrification using the Freeman (2005) methodology.
-        
-        **Process:**
-        1. Identify **Gentrifiable** tracts in 2000 (Low income, low new housing).
-        2. Identify **Gentrifying** tracts by 2010 (Rapid increase in education & property value).
-        """
+def _(mo, os):
+    # Config & Keys
+    API_KEY = os.getenv("CENSUS_API_KEY")
+    STATE = "36"
+    COUNTY = "047"
+    SHAPE_URL = "https://www2.census.gov/geo/pvs/tiger2010st/36_New_York/36047/tl_2010_36047_tract00.zip"
+
+    # Validation
+    if not API_KEY:
+        status = mo.md("❌ **API Key Missing**")
+    else:
+        status = mo.md("✅ **Environment Ready**")
+
+    return API_KEY, COUNTY, SHAPE_URL, STATE
+
+
+@app.cell
+def _(pd, requests):
+    def fetch_census_data(base_url, variables, state, county, api_key):
+        """Generic function to fetch Census data for a specific county."""
+        params = {
+            "get": ",".join(variables),
+            "for": "tract:*",
+            "in": f"state:{state} county:{county}",
+            "key": api_key
+        }
+        response = requests.get(base_url, params=params)
+
+        if response.status_code != 200:
+            return None, f"Error {response.status_code}: {response.text}"
+
+        try:
+            data = response.json()
+            df = pd.DataFrame(data[1:], columns=data[0])
+            return df, None
+        except Exception as e:
+            return None, str(e)
+
+
+    return (fetch_census_data,)
+
+
+@app.cell
+def _(API_KEY, COUNTY, STATE, fetch_census_data, mo):
+    if not API_KEY:
+        mo.stop(True)
+
+    # --- 2000 Decennial Census (SF3) ---
+    vars_2000 = ["GEO_ID", "P053001", "H034001", "P037001", "H085001", 
+                 "P037015", "P037016", "P037017", "P037018", 
+                 "P037032", "P037033", "P037034", "P037035"]
+
+    df_2000, err_2000 = fetch_census_data(
+        "http://api.census.gov/data/2000/dec/sf3", 
+        vars_2000, STATE, COUNTY, API_KEY
     )
+
+    # --- 2012 ACS 5-Year Survey ---
+    # B15003_022-025 = BA, Masters, Professional, Doctorate
+    # B25077_001E = Median Value
+    vars_2012 = ["GEO_ID", "B19013_001E", "B15003_001E", "B25077_001E",
+                 "B15003_022E", "B15003_023E", "B15003_024E", "B15003_025E"]
+
+    df_2012, err_2012 = fetch_census_data(
+        "http://api.census.gov/data/2012/acs/acs5", 
+        vars_2012, STATE, COUNTY, API_KEY
+    )
+
+    if err_2000 or err_2012:
+        mo.stop(True, mo.md(f"Fetch Error: {err_2000 or err_2012}"))
+    return df_2000, df_2012
+
+
+@app.cell
+def _(df_2000, df_2012, pd):
+    # --- Cleaning & Merging ---
+
+    # 2000 Logic
+    d00 = df_2000.copy()
+    d00['geoid'] = d00['GEO_ID'].str[-11:]
+    d00 = d00.rename(columns={"P053001": "mhi_00", "H085001": "med_val_00"})
+
+    edu_cols_00 = ["P037015", "P037016", "P037017", "P037018", "P037032", "P037033", "P037034", "P037035"]
+    d00[edu_cols_00] = d00[edu_cols_00].apply(pd.to_numeric)
+    d00["pct_ba_00"] = (d00[edu_cols_00].sum(axis=1) / pd.to_numeric(d00["P037001"])) * 100
+
+    # 2012 Logic
+    d12 = df_2012.copy()
+    d12['geoid'] = d12['GEO_ID'].str[-11:]
+    d12 = d12.rename(columns={"B19013_001E": "mhi_12", "B25077_001E": "med_val_12"})
+
+    edu_cols_12 = ["B15003_022E", "B15003_023E", "B15003_024E", "B15003_025E"]
+    d12[edu_cols_12] = d12[edu_cols_12].apply(pd.to_numeric)
+    d12["pct_ba_12"] = (d12[edu_cols_12].sum(axis=1) / pd.to_numeric(d12["B15003_001E"])) * 100
+
+    # Combine
+    combined = pd.merge(d00[['geoid', 'mhi_00', 'med_val_00', 'pct_ba_00']], 
+                        d12[['geoid', 'mhi_12', 'med_val_12', 'pct_ba_12']], 
+                        on='geoid')
+
+    # Inflation Adjustment (2000 to 2012 factor approx 1.26)
+    combined['med_val_00_adj'] = pd.to_numeric(combined['med_val_00']) * 1.26
+
+    return (combined,)
+
+
+@app.cell
+def _(SHAPE_URL, combined, gpd, mo):
+    # Spatial Join
+    with mo.status.spinner(title="Loading Map..."):
+        gdf = gpd.read_file(SHAPE_URL)
+        gdf['geoid'] = "36047" + gdf['TRACTCE00']
+
+    final_gdf = gdf.merge(combined, on='geoid', how='left')
+    return (final_gdf,)
+
+
+@app.cell
+def _(final_gdf, pd, plt):
+    # Gentrification Logic: Did property values grow more than inflation?
+    final_gdf['val_growth'] = pd.to_numeric(final_gdf['med_val_12']) > final_gdf['med_val_00_adj']
+
+    fig, ax = plt.subplots(figsize=(10, 8))
+    final_gdf.plot(column='val_growth', cmap='OrRd', legend=True, ax=ax)
+    ax.set_title("Tracts where Home Values Outpaced Inflation (2000-2012)")
+    ax.axis("off")
+    plt.show()
     return
 
-@app.cell
-def __(mo, os):
-    # Security check for API Key
-    API_KEY = os.getenv("CENSUS_API_KEY")
-    
-    if API_KEY:
-        status = print("✅ Census API Key detected from .env")
-    else:
-        status = print("❌ **API Key Missing**: Ensure CENSUS_API_KEY is in your .env file.")
-    
-    STATE = "36"   # New York
-    COUNTY = "047" # Kings County (Brooklyn)
-    BASE_URL = "http://api.census.gov/data/2000/dec/sf3"
-    
-    return API_KEY, BASE_URL, COUNTY, STATE, status
 
 @app.cell
-def __():
-    # Census Variable Mapping
-    VARIABLES = [
-        "NAME", "GEO_ID", "P053001", "H034001", "H034002", "H034003", 
-        "H034004", "H034005", "P037001", "P037015", "P037016", 
-        "P037017", "P037018", "P037032", "P037033", "P037034", "P037035"
-    ]
-    
-    COLUMN_NAMES = {
-        "P053001": "mhi",             # Median Household Income
-        "H034001": "total_units",     # Total Housing Units
-        "P037001": "total_pop_over25",# Pop for Education
-        "GEO_ID": "geoid"
-    }
-    return COLUMN_NAMES, VARIABLES
+def _():
+    return
 
-@app.cell
-def __(API_KEY, BASE_URL, COLUMN_NAMES, COUNTY, STATE, VARIABLES, mo, pd, requests):
-    if not API_KEY:
-        mo.stop(True, mo.md("Please provide an API key to continue."))
-        
-    params = {
-        "get": ",".join(VARIABLES),
-        "for": "tract:*",
-        "in": f"state:{STATE} county:{COUNTY}",
-        "key": API_KEY
-    }
-    
-    response = requests.get(BASE_URL, params=params)
-    
-    # --- Robust Error Handling ---
-    if response.status_code != 200:
-        # This will show you exactly what the Census API says (e.g., "Invalid Key")
-        error_msg = f"**API Error {response.status_code}:** {response.text}"
-        mo.stop(True, mo.md(error_msg))
-
-    try:
-        raw_data = response.json()
-    except Exception as e:
-        # This catches the JSONDecodeError and displays the non-JSON text
-        mo.stop(True, mo.md(f"**JSON Parsing Error:** {str(e)} \n\n **Raw Response:** {response.text}"))
-        
-    # Process the data if JSON was successful
-    df = pd.DataFrame(raw_data[1:], columns=raw_data[0])
-    df = df.rename(columns=COLUMN_NAMES)
-    df['geoid'] = df['geoid'].str[-11:]
-    
-    # Convert numeric columns
-    numeric_cols = [c for c in df.columns if c not in ['NAME', 'state', 'county', 'tract', 'geoid']]
-    df[numeric_cols] = df[numeric_cols].apply(pd.to_numeric, errors='coerce')
-    
-    return df,
-
-@app.cell
-def __(df):
-    # 1. Calculate Educational Attainment (% BA or higher)
-    _edu_cols = ["P037015", "P037016", "P037017", "P037018", "P037032", "P037033", "P037034", "P037035"]
-    df["pct_higher_ed"] = (df[_edu_cols].sum(axis=1) / df["total_pop_over25"]) * 100
-    
-    # 2. Calculate Recent Housing (% built 1980-2000)
-    _recent_cols = ["H034002", "H034003", "H034004", "H034005"]
-    df["pct_recent_housing"] = (df[_recent_cols].sum(axis=1) / df["total_units"]) * 100
-    
-    # 3. Define Thresholds (compared to Brooklyn Median)
-    median_mhi = df["mhi"].median()
-    median_recent_housing = df["pct_recent_housing"].median()
-    
-    # 4. Identify Gentrifiable Tracts
-    df["is_gentrifiable"] = (df["mhi"] < median_mhi) & (df["pct_recent_housing"] < median_recent_housing)
-    
-    return df, median_mhi, median_recent_housing
-
-@app.cell
-def __(df, mo, status):
-    # Output UI
-    return mo.vstack([
-        status,
-        mo.md("### Results: Gentrification Metrics (2000)"),
-        mo.ui.table(
-            df[['geoid', 'mhi', 'pct_higher_ed', 'pct_recent_housing', 'is_gentrifiable']], 
-            pagination=True,
-            label="Brooklyn Census Tracts"
-        )
-    ])
 
 if __name__ == "__main__":
     app.run()
